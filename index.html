@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I Love You — Hati dari Kata</title>
+<style>
+  :root {
+    --bg: #fff1f3;
+    --ink: #7a0f2e;
+    --accent: #e11d48;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a0a10; --ink: #ffd1dc; --accent: #ff4d79; }
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, "Times New Roman", serif;
+    overflow: hidden;
+  }
+  canvas { max-width: 100%; display: block; }
+  button {
+    margin-top: 12px;
+    padding: 10px 22px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font: 600 15px Georgia, serif;
+    cursor: pointer;
+  }
+  button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="replay">Ulangi animasi</button>
+
+<script>
+(function () {
+  const TEXT = "I LOVE YOU";   // teks horizontal yang ditumpuk mengikuti bentuk hati
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const css = getComputedStyle(document.documentElement);
+
+  let size, stamps, start;
+
+  // Rumus kurva hati (parametrik)
+  function heart(t) {
+    return {
+      x: 16 * Math.pow(Math.sin(t), 3),
+      y: -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))
+    };
+  }
+
+  function build() {
+    size = Math.min(window.innerWidth - 20, window.innerHeight - 90, 640);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + "px";
+    canvas.style.height = size + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const scale = size / 38;
+    const layers = [1, 0.82, 0.64, 0.46, 0.28, 0.1];   // lapisan hati dari luar ke dalam
+    stamps = [];
+    let n = 0;
+
+    layers.forEach((k, li) => {
+      const fs = Math.max(9, size / 30) * (0.65 + 0.35 * k);
+      const phraseW = fs * 6;                 // perkiraan lebar teks "I LOVE YOU"
+      const gap = phraseW * 0.4;              // jarak kecil = teks saling bertumpuk
+
+      // titik-titik di sepanjang kurva
+      const steps = 2000, path = [];
+      for (let i = 0; i <= steps; i++) {
+        const p = heart((i / steps) * Math.PI * 2);
+        path.push({ x: size / 2 + p.x * scale * k, y: size / 2 + 1 + p.y * scale * k });
+      }
+
+      let dist = 0, next = 0;
+      for (let i = 1; i < path.length; i++) {
+        dist += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+        if (dist >= next) {
+          stamps.push({ x: path[i].x, y: path[i].y, fs, accent: n % 2 === 0 });
+          n++;
+          next += gap;
+        }
+      }
+    });
+  }
+
+  function draw(now) {
+    const elapsed = (now - start) / 1000;
+    ctx.clearRect(0, 0, size, size);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const beat = 1 + 0.025 * Math.sin(elapsed * 4);   // efek detak jantung
+    const total = stamps.length;
+    const revealTime = 3;
+
+    ctx.save();
+    ctx.translate(size / 2, size / 2);
+    ctx.scale(beat, beat);
+    ctx.translate(-size / 2, -size / 2);
+
+    for (let i = 0; i < total; i++) {
+      const p = stamps[i];
+      const appear = (i / total) * revealTime;
+      if (elapsed < appear) continue;
+      ctx.globalAlpha = Math.min(0.9, (elapsed - appear) * 3);
+      ctx.fillStyle = css.getPropertyValue(p.accent ? "--accent" : "--ink");
+      ctx.font = "bold " + p.fs + "px Georgia, serif";
+      ctx.fillText(TEXT, p.x, p.y);   // teks tegak lurus (horizontal), tanpa rotasi
+    }
+    ctx.restore();
+    requestAnimationFrame(draw);
+  }
+
+  document.getElementById("replay").addEventListener("click", () => {
+    start = performance.now();
+  });
+  window.addEventListener("resize", () => { build(); start = performance.now(); });
+
+  build();
+  start = performance.now();
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
